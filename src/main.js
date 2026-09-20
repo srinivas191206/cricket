@@ -47,6 +47,9 @@ class TrackAIApp {
       { id: "b1", name: "Player 1", style: "fast" }
     ];
 
+    // User Profile
+    this.loadUserProfile();
+
     // FPS calculation
     this.lastFrameTime = performance.now();
     this.frameCount = 0;
@@ -70,11 +73,33 @@ class TrackAIApp {
       tabInsights: document.getElementById("navInsights"),
     };
 
-    // Home Tab
+    // Home Tab & Profile
     this.btnHeroStartTracking = document.getElementById("btnHeroStartTracking");
     this.btnOpenProfile = document.getElementById("btnOpenProfile");
+    this.headerAvatarInitials = document.getElementById("headerAvatarInitials");
     this.profileDrawer = document.getElementById("profileDrawer");
     this.btnCloseProfileDrawer = document.getElementById("btnCloseProfileDrawer");
+    this.profileViewMode = document.getElementById("profileViewMode");
+    this.profileEditMode = document.getElementById("profileEditMode");
+    this.profileLargeAvatar = document.getElementById("profileLargeAvatar");
+    this.profileDisplayName = document.getElementById("profileDisplayName");
+    this.profileDisplaySubtitle = document.getElementById("profileDisplaySubtitle");
+    this.profileRoleBadge = document.getElementById("profileRoleBadge");
+    this.statProfileDeliveries = document.getElementById("statProfileDeliveries");
+    this.statProfileSessions = document.getElementById("statProfileSessions");
+    this.specRole = document.getElementById("specRole");
+    this.specBowlingArm = document.getElementById("specBowlingArm");
+    this.specBowlingStyle = document.getElementById("specBowlingStyle");
+    this.btnEditProfile = document.getElementById("btnEditProfile");
+    this.inputProfileName = document.getElementById("inputProfileName");
+    this.btnArmRight = document.getElementById("btnArmRight");
+    this.btnArmLeft = document.getElementById("btnArmLeft");
+    this.btnStyleFast = document.getElementById("btnStyleFast");
+    this.btnStyleSpin = document.getElementById("btnStyleSpin");
+    this.btnStyleMedium = document.getElementById("btnStyleMedium");
+    this.btnCancelEditProfile = document.getElementById("btnCancelEditProfile");
+    this.btnSaveProfile = document.getElementById("btnSaveProfile");
+
     this.btnViewRecentAnalysis = document.getElementById("btnViewRecentAnalysis");
     this.btnSeeProgressDetails = document.getElementById("btnSeeProgressDetails");
     this.btnViewAllWeek = document.getElementById("btnViewAllWeek");
@@ -157,11 +182,82 @@ class TrackAIApp {
     });
 
     this.btnOpenProfile.addEventListener("click", () => {
+      this.updateProfileUI();
       this.profileDrawer.style.display = "flex";
     });
     this.btnCloseProfileDrawer.addEventListener("click", () => {
       this.profileDrawer.style.display = "none";
     });
+
+    if (this.btnEditProfile) {
+      this.btnEditProfile.addEventListener("click", () => {
+        if (this.profileViewMode) this.profileViewMode.style.display = "none";
+        if (this.profileEditMode) this.profileEditMode.style.display = "block";
+        if (this.inputProfileName) this.inputProfileName.value = this.userProfile.name;
+        
+        // Set arm buttons
+        if (this.userProfile.arm === "Left-Arm") {
+          if (this.btnArmLeft) this.btnArmLeft.classList.add("active");
+          if (this.btnArmRight) this.btnArmRight.classList.remove("active");
+        } else {
+          if (this.btnArmRight) this.btnArmRight.classList.add("active");
+          if (this.btnArmLeft) this.btnArmLeft.classList.remove("active");
+        }
+
+        // Set style buttons
+        const styleBtns = [this.btnStyleFast, this.btnStyleSpin, this.btnStyleMedium];
+        styleBtns.forEach(b => b && b.classList.remove("active"));
+        if (this.userProfile.style === "Spin" && this.btnStyleSpin) this.btnStyleSpin.classList.add("active");
+        else if (this.userProfile.style === "Medium" && this.btnStyleMedium) this.btnStyleMedium.classList.add("active");
+        else if (this.btnStyleFast) this.btnStyleFast.classList.add("active");
+      });
+    }
+
+    if (this.btnArmRight && this.btnArmLeft) {
+      this.btnArmRight.addEventListener("click", () => {
+        this.btnArmRight.classList.add("active");
+        this.btnArmLeft.classList.remove("active");
+      });
+      this.btnArmLeft.addEventListener("click", () => {
+        this.btnArmLeft.classList.add("active");
+        this.btnArmRight.classList.remove("active");
+      });
+    }
+
+    const styleBtns = [this.btnStyleFast, this.btnStyleSpin, this.btnStyleMedium];
+    styleBtns.forEach(btn => {
+      if (btn) {
+        btn.addEventListener("click", () => {
+          styleBtns.forEach(b => b && b.classList.remove("active"));
+          btn.classList.add("active");
+        });
+      }
+    });
+
+    if (this.btnCancelEditProfile) {
+      this.btnCancelEditProfile.addEventListener("click", () => {
+        if (this.profileEditMode) this.profileEditMode.style.display = "none";
+        if (this.profileViewMode) this.profileViewMode.style.display = "block";
+      });
+    }
+
+    if (this.btnSaveProfile) {
+      this.btnSaveProfile.addEventListener("click", () => {
+        const name = this.inputProfileName ? (this.inputProfileName.value.trim() || "Srinivas") : "Srinivas";
+        const arm = (this.btnArmLeft && this.btnArmLeft.classList.contains("active")) ? "Left-Arm" : "Right-Arm";
+        const activeBtn = styleBtns.find(b => b && b.classList.contains("active"));
+        const style = activeBtn ? (activeBtn.getAttribute("data-style") || "Fast") : "Fast";
+
+        this.userProfile = {
+          name,
+          arm,
+          style,
+          role: style === "Fast" ? "Fast Bowler" : (style === "Spin" ? "Spin Bowler" : "Medium Pacer")
+        };
+
+        this.saveUserProfile();
+      });
+    }
 
     if (this.btnViewRecentAnalysis) {
       this.btnViewRecentAnalysis.addEventListener("click", () => this.switchTab("tabInsights"));
@@ -240,9 +336,73 @@ class TrackAIApp {
   }
 
   async init() {
+    this.updateProfileUI();
     this.renderFullTrackSessionGrid();
     this.switchTab("tabHome");
     this.startRenderLoop();
+  }
+
+  loadUserProfile() {
+    try {
+      const saved = localStorage.getItem("trackai_user_profile");
+      if (saved) {
+        this.userProfile = JSON.parse(saved);
+      } else {
+        this.userProfile = {
+          name: "Srinivas",
+          arm: "Right-Arm",
+          style: "Fast",
+          role: "Fast Bowler"
+        };
+      }
+    } catch (e) {
+      this.userProfile = {
+        name: "Srinivas",
+        arm: "Right-Arm",
+        style: "Fast",
+        role: "Fast Bowler"
+      };
+    }
+  }
+
+  saveUserProfile() {
+    try {
+      localStorage.setItem("trackai_user_profile", JSON.stringify(this.userProfile));
+    } catch (e) {
+      console.warn("Save profile failed:", e);
+    }
+    this.updateProfileUI();
+  }
+
+  updateProfileUI() {
+    const p = this.userProfile || { name: "Srinivas", arm: "Right-Arm", style: "Fast", role: "Fast Bowler" };
+    const initial = (p.name && p.name.trim() ? p.name.trim()[0] : "S").toUpperCase();
+    
+    if (this.headerAvatarInitials) this.headerAvatarInitials.textContent = initial;
+    if (this.profileLargeAvatar) this.profileLargeAvatar.textContent = initial;
+    if (this.profileDisplayName) this.profileDisplayName.textContent = p.name;
+    if (this.profileDisplaySubtitle) this.profileDisplaySubtitle.textContent = `${p.arm} ${p.style} • Club Cricketer`;
+    if (this.profileRoleBadge) this.profileRoleBadge.textContent = `${p.style} Bowler`;
+
+    const greetingNameEl = document.querySelector(".greeting-name");
+    if (greetingNameEl) {
+      greetingNameEl.innerHTML = `${p.name} <span class="wave-emoji">👋</span>`;
+    }
+
+    // Dynamic stats from active recorded sessions
+    const sessions = this.sessionMgr ? this.sessionMgr.getAllSessions() : [];
+    const totalDeliveries = sessions.reduce((acc, s) => acc + (s.deliveries ? s.deliveries.length : 0), 0);
+    if (this.statProfileSessions) this.statProfileSessions.textContent = sessions.length;
+    if (this.statProfileDeliveries) this.statProfileDeliveries.textContent = totalDeliveries;
+
+    // Spec list
+    if (this.specRole) this.specRole.textContent = p.role || "Bowler";
+    if (this.specBowlingArm) this.specBowlingArm.textContent = p.arm;
+    if (this.specBowlingStyle) this.specBowlingStyle.textContent = `${p.style} Medium`;
+
+    // Ensure view mode is shown
+    if (this.profileViewMode) this.profileViewMode.style.display = "block";
+    if (this.profileEditMode) this.profileEditMode.style.display = "none";
   }
 
   /**

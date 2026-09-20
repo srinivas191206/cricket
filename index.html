@@ -33,7 +33,7 @@
 
           <!-- Profile in top-right -->
           <div class="top-profile-btn" id="btnOpenProfile" title="Player Profile">
-            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80" alt="Avatar" class="avatar-img">
+            <div class="pro-avatar-initials" id="headerAvatarInitials">S</div>
             <svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.5" stroke-linecap="round">
               <path d="M9 18l6-6-6-6"/>
             </svg>
@@ -660,28 +660,108 @@
       </div>
     </div>
 
-    <!-- PROFILE DRAWER -->
+    <!-- PROFILE DRAWER (Clean Professional & Basic) -->
     <div class="drawer-backdrop" id="profileDrawer" style="display: none;">
-      <div class="drawer-panel">
-        <div class="drawer-header">
+      <div class="drawer-panel pro-profile-drawer">
+        <div class="sheet-drag-handle" style="margin-top: 10px;"></div>
+        <div class="drawer-header pro-profile-header">
           <div class="drawer-title-group">
             <h3>Player Profile</h3>
-            <span class="drawer-badge">Fast Bowler</span>
+            <span class="drawer-badge" id="profileRoleBadge">Fast Bowler</span>
           </div>
           <button class="modal-close" id="btnCloseProfileDrawer">✕</button>
         </div>
-        <div class="drawer-content profile-details-body">
-          <div class="profile-header-card">
-            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=160&auto=format&fit=crop&q=80" alt="Srinivas" class="profile-large-avatar">
-            <h4>Srinivas</h4>
-            <p>Right-arm Fast Medium • Club Cricketer</p>
+
+        <div class="drawer-content profile-details-body" style="padding: 16px 20px 28px 20px;">
+          
+          <!-- View Mode -->
+          <div id="profileViewMode">
+            <div class="profile-header-card">
+              <div class="pro-large-avatar-initials" id="profileLargeAvatar">S</div>
+              <h4 id="profileDisplayName">Srinivas</h4>
+              <p id="profileDisplaySubtitle">Right-Arm Fast • Club Cricketer</p>
+
+              <!-- Basic Player Stats -->
+              <div class="profile-quick-stats">
+                <div class="pstat-item">
+                  <span class="pstat-num" id="statProfileDeliveries">0</span>
+                  <span class="pstat-label">Deliveries</span>
+                </div>
+                <div class="pstat-divider"></div>
+                <div class="pstat-item">
+                  <span class="pstat-num" id="statProfileSessions">0</span>
+                  <span class="pstat-label">Sessions</span>
+                </div>
+                <div class="pstat-divider"></div>
+                <div class="pstat-item">
+                  <span class="pstat-num">22 yd</span>
+                  <span class="pstat-label">Pitch</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Basic Specifications (Clean & Professional) -->
+            <div class="profile-spec-list">
+              <div class="spec-row">
+                <span>Player Role</span>
+                <strong id="specRole">Bowler</strong>
+              </div>
+              <div class="spec-row">
+                <span>Bowling Arm</span>
+                <strong id="specBowlingArm">Right-Arm</strong>
+              </div>
+              <div class="spec-row">
+                <span>Bowling Style</span>
+                <strong id="specBowlingStyle">Fast Medium</strong>
+              </div>
+              <div class="spec-row">
+                <span>Target Length</span>
+                <strong>6.0m – 8.0m (Good Length)</strong>
+              </div>
+              <div class="spec-row">
+                <span>Pitch Standard</span>
+                <strong>Full 22 Yards (20.12m)</strong>
+              </div>
+            </div>
+
+            <button type="button" class="pro-edit-profile-btn" id="btnEditProfile">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span>Edit Details</span>
+            </button>
           </div>
-          <div class="profile-spec-list">
-            <div class="spec-row"><span>Bowling Arm</span><strong>Right Arm Fast</strong></div>
-            <div class="spec-row"><span>Target Length</span><strong>6.0m - 8.0m (Good Length)</strong></div>
-            <div class="spec-row"><span>Pitch Spec</span><strong>Full 22 Yards (20.12m)</strong></div>
-            <div class="spec-row"><span>Perspective Homography</span><strong>3x3 DLT Matrix Active</strong></div>
+
+          <!-- Edit Mode -->
+          <div id="profileEditMode" style="display: none;">
+            <div class="profile-edit-form">
+              <div class="form-field-group">
+                <label class="field-label">Player Name</label>
+                <input type="text" id="inputProfileName" class="pro-text-input" value="Srinivas" placeholder="Enter your name">
+              </div>
+
+              <div class="form-field-group">
+                <label class="field-label">Bowling Arm</label>
+                <div class="session-mode-segmented">
+                  <button type="button" class="mode-segment-btn active" id="btnArmRight" data-arm="Right-Arm">Right-Arm</button>
+                  <button type="button" class="mode-segment-btn" id="btnArmLeft" data-arm="Left-Arm">Left-Arm</button>
+                </div>
+              </div>
+
+              <div class="form-field-group">
+                <label class="field-label">Bowling Style</label>
+                <div class="session-mode-segmented">
+                  <button type="button" class="mode-segment-btn active" id="btnStyleFast" data-style="Fast">Fast</button>
+                  <button type="button" class="mode-segment-btn" id="btnStyleSpin" data-style="Spin">Spin</button>
+                  <button type="button" class="mode-segment-btn" id="btnStyleMedium" data-style="Medium">Medium</button>
+                </div>
+              </div>
+
+              <div class="profile-edit-actions">
+                <button type="button" class="pro-secondary-btn" id="btnCancelEditProfile">Cancel</button>
+                <button type="button" class="pro-primary-btn" id="btnSaveProfile">Save Changes</button>
+              </div>
+            </div>
           </div>
+
         </div>
       </div>
     </div>
