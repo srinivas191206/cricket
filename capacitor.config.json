@@ -1,0 +1,9 @@
+{
+  "appId": "com.cricket.pitchai",
+  "appName": "Cricket Pitch AI",
+  "webDir": "dist",
+  "server": {
+    "hostname": "localhost",
+    "androidScheme": "https"
+  }
+}

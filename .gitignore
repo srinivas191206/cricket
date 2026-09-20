@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production build outputs
+dist/
+
+# Android build outputs & local config
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+*.apk
+
+# Python caches
+__pycache__/
+*.pyc
+
+# Logs & Environment
+*.log
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
