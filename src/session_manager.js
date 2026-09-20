@@ -45,7 +45,7 @@ export class SessionManager {
   /**
    * Creates a new session with bowlers list.
    */
-  createSession({ name, bowlers }) {
+  createSession({ name, mode = "solo", bowlers }) {
     const now = new Date();
     const dateStr = now.toLocaleDateString("en-GB").replace(/\//g, "-");
     const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -55,16 +55,20 @@ export class SessionManager {
       year: "numeric"
     });
 
+    const isSolo = mode === "solo";
+    const roster = isSolo
+      ? (bowlers && bowlers.length > 0 ? [bowlers[0]] : [{ id: "b1", name: "Player 1", style: "fast" }])
+      : (bowlers && bowlers.length > 0 ? bowlers : [{ id: "b1", name: "Player 1", style: "fast" }]);
+
     const newSession = {
       id: `session_${Date.now()}`,
-      name: name && name.trim() ? name.trim() : `Session ${now.toLocaleDateString("en-GB", { weekday: "short" })}`,
+      name: name && name.trim() ? name.trim() : (isSolo ? "Solo Session" : "Team Session"),
+      mode: isSolo ? "solo" : "team",
       date: dateStr,
       time: timeStr,
       dateGroup: dateGroup,
       status: "in_progress",
-      bowlers: bowlers && bowlers.length > 0 ? bowlers : [
-        { id: "b1", name: "Srinivas", style: "fast" }
-      ],
+      bowlers: roster,
       deliveries: []
     };
 
@@ -87,7 +91,9 @@ export class SessionManager {
     const found = this.sessions.find(s => s.id === sessionId);
     if (found) {
       this.activeSessionId = sessionId;
-      this.currentBowlerIndex = 0;
+      const deliveryCount = found.deliveries ? found.deliveries.length : 0;
+      const bowlerCount = found.bowlers ? found.bowlers.length : 1;
+      this.currentBowlerIndex = deliveryCount % bowlerCount;
       return found;
     }
     return null;
@@ -96,9 +102,18 @@ export class SessionManager {
   getCurrentBowler() {
     const session = this.getActiveSession();
     if (!session || !session.bowlers || session.bowlers.length === 0) {
-      return { id: "b1", name: "Srinivas", style: "fast" };
+      return { id: "b1", name: "Player 1", style: "fast" };
     }
     return session.bowlers[this.currentBowlerIndex % session.bowlers.length];
+  }
+
+  getNextBowler() {
+    const session = this.getActiveSession();
+    if (!session || !session.bowlers || session.bowlers.length <= 1) {
+      return this.getCurrentBowler();
+    }
+    const nextIdx = (this.currentBowlerIndex + 1) % session.bowlers.length;
+    return session.bowlers[nextIdx];
   }
 
   rotateBowler() {

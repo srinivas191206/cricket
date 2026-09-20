@@ -595,6 +595,21 @@
         </div>
 
         <div class="pro-modal-body">
+          <!-- Session Format: Solo vs Team -->
+          <div class="form-field-group">
+            <label class="field-label">Session Format</label>
+            <div class="session-mode-segmented">
+              <button type="button" class="mode-segment-btn active" id="btnModeSolo" data-mode="solo">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>Solo (1 Player)</span>
+              </button>
+              <button type="button" class="mode-segment-btn" id="btnModeTeam" data-mode="team">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span>Team Session</span>
+              </button>
+            </div>
+          </div>
+
           <!-- Session Name -->
           <div class="form-field-group">
             <label class="field-label">Session Name</label>
@@ -602,14 +617,19 @@
           </div>
 
           <!-- Bowlers & Order List -->
-          <div class="form-field-group">
+          <div class="form-field-group" id="groupBowlersRoster">
             <div class="bowlers-headline">
-              <label class="field-label">Bowler Rotation & Style</label>
-              <button type="button" class="pro-link-btn" id="btnAddBowlerRow">+ Add Bowler</button>
+              <label class="field-label" id="labelBowlersHeadline">Player & Bowling Style</label>
+              <button type="button" class="pro-link-btn" id="btnAddBowlerRow" style="display: none;">+ Add Player</button>
             </div>
             
             <div class="pro-bowlers-container" id="bowlersRosterList">
               <!-- Dynamically populated rows with Fast / Spin style toggles -->
+            </div>
+
+            <div class="pro-order-hint" id="bowlersOrderHint" style="display: none;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+              <span>Deliveries will rotate strictly in this order: 1 → 2 → 3...</span>
             </div>
           </div>
 

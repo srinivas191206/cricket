@@ -42,9 +42,9 @@ class TrackAIApp {
     this.recTimerInterval = null;
 
     // Temporary create session state
+    this.createSessionMode = "solo"; // "solo" (1 player) | "team" (multiple players)
     this.createSessionBowlers = [
-      { id: "b1", name: "Srinivas", style: "fast" },
-      { id: "b2", name: "Rahul", style: "spin" }
+      { id: "b1", name: "Player 1", style: "fast" }
     ];
 
     // FPS calculation
@@ -89,6 +89,10 @@ class TrackAIApp {
     // Create Session Modal
     this.modalCreateSession = document.getElementById("modalCreateSession");
     this.btnCloseCreateSessionModal = document.getElementById("btnCloseCreateSessionModal");
+    this.btnModeSolo = document.getElementById("btnModeSolo");
+    this.btnModeTeam = document.getElementById("btnModeTeam");
+    this.labelBowlersHeadline = document.getElementById("labelBowlersHeadline");
+    this.bowlersOrderHint = document.getElementById("bowlersOrderHint");
     this.inputSessionName = document.getElementById("inputSessionName");
     this.bowlersRosterList = document.getElementById("bowlersRosterList");
     this.btnAddBowlerRow = document.getElementById("btnAddBowlerRow");
@@ -182,6 +186,13 @@ class TrackAIApp {
     this.btnCloseCreateSessionModal.addEventListener("click", () => {
       this.modalCreateSession.style.display = "none";
     });
+
+    if (this.btnModeSolo) {
+      this.btnModeSolo.addEventListener("click", () => this.setCreateSessionMode("solo"));
+    }
+    if (this.btnModeTeam) {
+      this.btnModeTeam.addEventListener("click", () => this.setCreateSessionMode("team"));
+    }
 
     this.btnAddBowlerRow.addEventListener("click", () => {
       this.addBowlerRow();
@@ -323,6 +334,8 @@ class TrackAIApp {
       const isResume = sess.status === "in_progress" || (sess.deliveries && sess.deliveries.length > 0);
       const count = sess.deliveries ? sess.deliveries.length : 0;
       const bowlerCount = sess.bowlers ? sess.bowlers.length : 1;
+      const isSolo = sess.mode === "solo" || bowlerCount === 1;
+      const modeLabel = isSolo ? "Solo" : `Team (${bowlerCount} players)`;
 
       card.innerHTML = `
         <div class="pro-card-pitch-header">
@@ -335,7 +348,7 @@ class TrackAIApp {
           <span class="pro-card-time">${sess.date} • ${sess.time}</span>
           <div class="pro-card-meta-pill">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            <span>${count} balls • ${bowlerCount} ${bowlerCount === 1 ? 'bowler' : 'bowlers'}</span>
+            <span>${modeLabel} • ${count} ${count === 1 ? 'ball' : 'balls'}</span>
           </div>
         </div>
       `;
@@ -353,13 +366,46 @@ class TrackAIApp {
     }
   }
 
-  openCreateSessionModal() {
+  setCreateSessionMode(mode) {
+    this.createSessionMode = mode;
     const now = new Date();
-    const dateStr = now.toLocaleDateString("en-GB").replace(/\//g, "-");
     const dayStr = now.toLocaleDateString("en-GB", { weekday: "short" });
-    this.inputSessionName.value = `Session ${dayStr} ${dateStr}`;
+
+    if (mode === "solo") {
+      if (this.btnModeSolo) this.btnModeSolo.classList.add("active");
+      if (this.btnModeTeam) this.btnModeTeam.classList.remove("active");
+      if (this.btnAddBowlerRow) this.btnAddBowlerRow.style.display = "none";
+      if (this.bowlersOrderHint) this.bowlersOrderHint.style.display = "none";
+      if (this.labelBowlersHeadline) this.labelBowlersHeadline.textContent = "Player & Bowling Style";
+      this.inputSessionName.value = `Solo Session ${dayStr}`;
+
+      // Limit to 1 bowler for solo session
+      if (this.createSessionBowlers.length > 1) {
+        this.createSessionBowlers = [this.createSessionBowlers[0]];
+      }
+    } else {
+      if (this.btnModeTeam) this.btnModeTeam.classList.add("active");
+      if (this.btnModeSolo) this.btnModeSolo.classList.remove("active");
+      if (this.btnAddBowlerRow) this.btnAddBowlerRow.style.display = "block";
+      if (this.bowlersOrderHint) this.bowlersOrderHint.style.display = "flex";
+      if (this.labelBowlersHeadline) this.labelBowlersHeadline.textContent = "Bowler Rotation Order & Style";
+      this.inputSessionName.value = `Team Session ${dayStr}`;
+
+      // For team session, ensure at least 2 players are seeded
+      if (this.createSessionBowlers.length < 2) {
+        this.createSessionBowlers.push({
+          id: `b_${Date.now()}_2`,
+          name: "Player 2",
+          style: "spin"
+        });
+      }
+    }
 
     this.renderBowlerRosterInputs();
+  }
+
+  openCreateSessionModal() {
+    this.setCreateSessionMode(this.createSessionMode || "solo");
     this.modalCreateSession.style.display = "flex";
   }
 
@@ -367,21 +413,23 @@ class TrackAIApp {
     if (!this.bowlersRosterList) return;
     this.bowlersRosterList.innerHTML = "";
 
+    const isSolo = this.createSessionMode === "solo";
+
     this.createSessionBowlers.forEach((b, idx) => {
       const row = document.createElement("div");
       row.className = "pro-bowler-row";
       row.innerHTML = `
-        <span class="pro-order-circle">${idx + 1}</span>
-        <input type="text" class="pro-bowler-field" data-idx="${idx}" value="${b.name}" placeholder="Bowler Name">
+        <span class="pro-order-circle" title="Bowling Order #${idx + 1}">${idx + 1}</span>
+        <input type="text" class="pro-bowler-field" data-idx="${idx}" value="${b.name}" placeholder="Player Name">
         <div class="pro-style-segment">
           <button type="button" class="pro-segment-btn ${b.style === 'fast' ? 'active' : ''}" data-style="fast" data-idx="${idx}">Fast</button>
           <button type="button" class="pro-segment-btn ${b.style === 'spin' ? 'active' : ''}" data-style="spin" data-idx="${idx}">Spin</button>
         </div>
-        ${this.createSessionBowlers.length > 1 ? `<button type="button" class="pro-row-del-btn" data-del="${idx}" title="Remove">✕</button>` : ""}
+        ${(!isSolo && this.createSessionBowlers.length > 2) ? `<button type="button" class="pro-row-del-btn" data-del="${idx}" title="Remove">✕</button>` : ""}
       `;
 
       row.querySelector(".pro-bowler-field").addEventListener("input", (e) => {
-        this.createSessionBowlers[idx].name = e.target.value.trim() || `Bowler ${idx + 1}`;
+        this.createSessionBowlers[idx].name = e.target.value.trim() || `Player ${idx + 1}`;
       });
 
       row.querySelectorAll(".pro-segment-btn").forEach(btn => {
@@ -408,16 +456,18 @@ class TrackAIApp {
     const nextNum = this.createSessionBowlers.length + 1;
     this.createSessionBowlers.push({
       id: `b_${Date.now()}_${nextNum}`,
-      name: `Bowler ${nextNum}`,
+      name: `Player ${nextNum}`,
       style: nextNum % 2 === 0 ? "spin" : "fast"
     });
     this.renderBowlerRosterInputs();
   }
 
   handleCreateSessionSubmit() {
-    const sessionName = this.inputSessionName.value.trim() || "Net Session";
+    const defaultName = this.createSessionMode === "solo" ? "Solo Session" : "Team Session";
+    const sessionName = this.inputSessionName.value.trim() || defaultName;
     const session = this.sessionMgr.createSession({
       name: sessionName,
+      mode: this.createSessionMode,
       bowlers: this.createSessionBowlers
     });
 
@@ -456,10 +506,14 @@ class TrackAIApp {
     const bowler = this.sessionMgr.getCurrentBowler();
     const session = this.sessionMgr.getActiveSession();
     const ballNum = session ? (session.deliveries.length + 1) : 1;
+    const isMultiBowler = session && session.bowlers && session.bowlers.length > 1;
 
     this.hudBowlerIcon.textContent = bowler.style === "spin" ? "SPIN" : "FAST";
     this.hudBowlerName.textContent = bowler.name;
-    this.hudBowlerStyle.textContent = `${bowler.style.toUpperCase()} • Ball #${ballNum}`;
+    const orderText = isMultiBowler 
+      ? `Order #${this.sessionMgr.currentBowlerIndex + 1}/${session.bowlers.length} • Ball #${ballNum}`
+      : `Ball #${ballNum}`;
+    this.hudBowlerStyle.textContent = `${bowler.style.toUpperCase()} • ${orderText}`;
   }
 
   openSwitchBowlerModal() {
@@ -711,14 +765,22 @@ class TrackAIApp {
       this.recIndicator.style.display = "flex";
       this.playbackTimeline.style.display = "none";
     } else if (this.appState === "review") {
+      const session = this.sessionMgr.getActiveSession();
       const bowler = this.sessionMgr.getCurrentBowler();
+      const isMultiBowler = session && session.bowlers && session.bowlers.length > 1;
+      const nextBowler = this.sessionMgr.getNextBowler();
+
       this.statusDot.className = "status-dot";
       this.statusTitle.textContent = "DELIVERY SAVED";
       this.statusSubtitle.textContent = `${bowler.name} • ${bowler.style.toUpperCase()}`;
 
-      this.mainActionText.textContent = "NEXT DELIVERY";
-      this.btnMainAction.className = "main-action-pill";
-      this.bottomHint.textContent = "Delivery saved to session • Tap Next Delivery";
+      if (isMultiBowler) {
+        this.mainActionText.textContent = `NEXT: ${nextBowler.name.toUpperCase()}`;
+        this.bottomHint.textContent = `Saved for ${bowler.name} • Up next in order: ${nextBowler.name} (${nextBowler.style.toUpperCase()})`;
+      } else {
+        this.mainActionText.textContent = "NEXT DELIVERY";
+        this.bottomHint.textContent = `Delivery saved for ${bowler.name} • Tap Next Delivery`;
+      }
 
       this.calibCanvas.style.display = "none";
       this.overlayCanvas.style.display = "block";
