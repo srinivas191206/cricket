@@ -1,17 +1,18 @@
 /**
- * TrackAI - Main Application Controller
- * 4-Tab Navigation (Home, Track, Sessions, Insights)
+ * TrackAI / FullTrack - Main Application Controller
  * Features:
- * - Home dashboard matching user's reference screenshot
- * - Top-right profile drawer
- * - Dedicated Track tab hosting the pitch calibration & recording engine
- * - Multi-delivery recording & persistent calibration
+ * - 4-Tab Navigation (Home, Track, Sessions, Insights)
+ * - FullTrack AI Session Browser in Track tab with Yellow '+' FAB
+ * - Create Session modal: session name, ball type, multi-bowler setup with Fast/Spin order
+ * - Real-time active bowler HUD and delivery logging
+ * - Pitch calibration & delivery review with perspective broadcast zones
  */
 
 import { CalibrationState } from "./calibration_state.js";
 import { CalibrationCanvas } from "./calibration_canvas.js";
 import { PitchOverlay } from "./pitch_overlay.js";
 import { VideoRecorder } from "./recorder.js";
+import { SessionManager } from "./session_manager.js";
 
 class TrackAIApp {
   constructor() {
@@ -22,6 +23,7 @@ class TrackAIApp {
     this.overlayCtx = this.overlayCanvas.getContext("2d");
 
     // Core Engines
+    this.sessionMgr = new SessionManager();
     this.state = new CalibrationState();
     this.canvasController = new CalibrationCanvas(
       this.calibCanvas,
@@ -35,10 +37,16 @@ class TrackAIApp {
 
     // App & Tab State
     this.activeTab = "tabHome"; // "tabHome" | "tabTrack" | "tabSessions" | "tabInsights"
+    this.trackViewMode = "browser"; // "browser" (FullTrack Grid) | "stage" (Camera/Pitch Calibration)
     this.appState = "calibrate"; // "calibrate" | "ready" | "recording" | "review"
-    this.savedRecordings = [];
-    this.activeRecordingIndex = -1;
     this.recTimerInterval = null;
+
+    // Temporary create session state
+    this.createSessionBowlers = [
+      { id: "b1", name: "Srinivas", style: "fast" },
+      { id: "b2", name: "Rahul", style: "spin" }
+    ];
+    this.selectedBallType = "Red Leather";
 
     // FPS calculation
     this.lastFrameTime = performance.now();
@@ -63,24 +71,46 @@ class TrackAIApp {
       tabInsights: document.getElementById("navInsights"),
     };
 
-    // Home Tab Buttons
+    // Home Tab
     this.btnHeroStartTracking = document.getElementById("btnHeroStartTracking");
     this.btnOpenProfile = document.getElementById("btnOpenProfile");
     this.profileDrawer = document.getElementById("profileDrawer");
     this.btnCloseProfileDrawer = document.getElementById("btnCloseProfileDrawer");
-
     this.btnViewRecentAnalysis = document.getElementById("btnViewRecentAnalysis");
     this.btnSeeProgressDetails = document.getElementById("btnSeeProgressDetails");
     this.btnViewAllWeek = document.getElementById("btnViewAllWeek");
-    this.btnViewAllSessionsCarousel = document.getElementById("btnViewAllSessionsCarousel");
 
-    // Track Tab Overlays & Controls
+    // Track Tab Subviews
+    this.trackSessionBrowser = document.getElementById("trackSessionBrowser");
+    this.stageContainer = document.getElementById("stageContainer");
+    this.ftSessionsGrid = document.getElementById("ftSessionsGrid");
+    this.btnOpenCreateSessionModal = document.getElementById("btnOpenCreateSessionModal");
+    this.btnBackToSessionsBrowser = document.getElementById("btnBackToSessionsBrowser");
+
+    // Create Session Modal
+    this.modalCreateSession = document.getElementById("modalCreateSession");
+    this.btnCloseCreateSessionModal = document.getElementById("btnCloseCreateSessionModal");
+    this.inputSessionName = document.getElementById("inputSessionName");
+    this.ballChoiceGrid = document.getElementById("ballChoiceGrid");
+    this.bowlersRosterList = document.getElementById("bowlersRosterList");
+    this.btnAddBowlerRow = document.getElementById("btnAddBowlerRow");
+    this.btnSubmitCreateSession = document.getElementById("btnSubmitCreateSession");
+
+    // Active Bowler HUD & Switcher
+    this.btnSwitchBowler = document.getElementById("btnSwitchBowler");
+    this.hudBowlerIcon = document.getElementById("hudBowlerIcon");
+    this.hudBowlerName = document.getElementById("hudBowlerName");
+    this.hudBowlerStyle = document.getElementById("hudBowlerStyle");
+    this.modalSwitchBowler = document.getElementById("modalSwitchBowler");
+    this.btnCloseSwitchBowlerModal = document.getElementById("btnCloseSwitchBowlerModal");
+    this.switchBowlerList = document.getElementById("switchBowlerList");
+
+    // Track Stage Overlays & Controls
     this.statusPill = document.getElementById("statusPill");
     this.statusDot = document.getElementById("statusDot");
     this.statusTitle = document.getElementById("statusTitle");
     this.statusSubtitle = document.getElementById("statusSubtitle");
     this.valFPS = document.getElementById("valFPS");
-    this.btnSourceMenu = document.getElementById("btnSourceMenu");
 
     this.btnMainAction = document.getElementById("btnMainAction");
     this.mainActionText = document.getElementById("mainActionText");
@@ -96,21 +126,13 @@ class TrackAIApp {
     this.videoScrubber = document.getElementById("videoScrubber");
     this.timeDisplay = document.getElementById("timeDisplay");
 
-    // Modals & Drawers
-    this.sourceModal = document.getElementById("sourceModal");
-    this.btnCloseSourceModal = document.getElementById("btnCloseSourceModal");
-    this.btnSelectLiveCamera = document.getElementById("btnSelectLiveCamera");
-    this.btnSelectSampleVideo = document.getElementById("btnSelectSampleVideo");
-    this.fileUploadInput = document.getElementById("fileUploadInput");
-
-    this.segBowlerBottom = document.getElementById("segBowlerBottom");
-    this.segBowlerTop = document.getElementById("segBowlerTop");
-
+    // Sessions & Drawers
     this.recordingsDrawer = document.getElementById("recordingsDrawer");
     this.btnCloseDrawer = document.getElementById("btnCloseDrawer");
     this.recordingsList = document.getElementById("recordingsList");
     this.recordingsEmptyState = document.getElementById("recordingsEmptyState");
     this.drawerCountBadge = document.getElementById("drawerCountBadge");
+    this.sessionDrawerTitle = document.getElementById("sessionDrawerTitle");
     this.tabSessionsList = document.getElementById("tabSessionsList");
 
     this.btnGrantCamera = document.getElementById("btnGrantCamera");
@@ -129,12 +151,12 @@ class TrackAIApp {
     // Home Action Handlers
     this.btnHeroStartTracking.addEventListener("click", () => {
       this.switchTab("tabTrack");
+      this.openCreateSessionModal();
     });
 
     this.btnOpenProfile.addEventListener("click", () => {
       this.profileDrawer.style.display = "flex";
     });
-
     this.btnCloseProfileDrawer.addEventListener("click", () => {
       this.profileDrawer.style.display = "none";
     });
@@ -148,11 +170,49 @@ class TrackAIApp {
     if (this.btnViewAllWeek) {
       this.btnViewAllWeek.addEventListener("click", () => this.switchTab("tabSessions"));
     }
-    if (this.btnViewAllSessionsCarousel) {
-      this.btnViewAllSessionsCarousel.addEventListener("click", () => this.switchTab("tabSessions"));
+
+    // FullTrack Session Browser Listeners
+    this.btnOpenCreateSessionModal.addEventListener("click", () => {
+      this.openCreateSessionModal();
+    });
+
+    this.btnBackToSessionsBrowser.addEventListener("click", () => {
+      this.exitLiveStageToBrowser();
+    });
+
+    // Create Session Modal Listeners
+    this.btnCloseCreateSessionModal.addEventListener("click", () => {
+      this.modalCreateSession.style.display = "none";
+    });
+
+    this.btnAddBowlerRow.addEventListener("click", () => {
+      this.addBowlerRow();
+    });
+
+    this.btnSubmitCreateSession.addEventListener("click", () => {
+      this.handleCreateSessionSubmit();
+    });
+
+    // Ball chips
+    if (this.ballChoiceGrid) {
+      this.ballChoiceGrid.querySelectorAll(".ball-chip").forEach(chip => {
+        chip.addEventListener("click", () => {
+          this.ballChoiceGrid.querySelectorAll(".ball-chip").forEach(c => c.classList.remove("active"));
+          chip.classList.add("active");
+          this.selectedBallType = chip.getAttribute("data-ball");
+        });
+      });
     }
 
-    // Allow clicking status pill to re-calibrate anytime
+    // Active Bowler Switcher
+    this.btnSwitchBowler.addEventListener("click", () => {
+      this.openSwitchBowlerModal();
+    });
+    this.btnCloseSwitchBowlerModal.addEventListener("click", () => {
+      this.modalSwitchBowler.style.display = "none";
+    });
+
+    // Status pill re-calibrate
     this.statusPill.addEventListener("click", () => {
       if (this.appState === "ready" || this.appState === "review") {
         this.appState = "calibrate";
@@ -160,19 +220,10 @@ class TrackAIApp {
       }
     });
 
-    // Track Controls
+    // Stage Controls
     this.btnMainAction.addEventListener("click", () => this.handleMainAction());
     this.btnOpenRecordings.addEventListener("click", () => this.openRecordingsDrawer());
-    this.btnSourceMenu.addEventListener("click", () => this.openSourceModal());
-    this.btnCloseSourceModal.addEventListener("click", () => this.closeSourceModal());
     this.btnCloseDrawer.addEventListener("click", () => this.closeRecordingsDrawer());
-
-    this.btnSelectLiveCamera.addEventListener("click", () => this.startLiveCamera());
-    this.btnSelectSampleVideo.addEventListener("click", () => this.loadSampleVideo());
-    this.fileUploadInput.addEventListener("change", (e) => this.handleFileUpload(e));
-
-    this.segBowlerBottom.addEventListener("click", () => this.setBowlerEnd("bottom"));
-    this.segBowlerTop.addEventListener("click", () => this.setBowlerEnd("top"));
 
     this.btnPlayPause.addEventListener("click", () => this.togglePlayPause());
     this.videoScrubber.addEventListener("input", () => this.handleScrubbing());
@@ -184,13 +235,14 @@ class TrackAIApp {
     this.video.addEventListener("ended", () => this.btnPlayPause.textContent = "▶");
 
     window.addEventListener("resize", () => {
-      if (this.activeTab === "tabTrack") {
+      if (this.activeTab === "tabTrack" && this.trackViewMode === "stage") {
         this.syncCanvasDimensions();
       }
     });
   }
 
   async init() {
+    this.renderFullTrackSessionGrid();
     this.switchTab("tabHome");
     this.startRenderLoop();
   }
@@ -201,7 +253,6 @@ class TrackAIApp {
   async switchTab(tabId) {
     this.activeTab = tabId;
 
-    // Toggle active tab views
     const tabs = [this.tabHome, this.tabTrack, this.tabSessions, this.tabInsights];
     tabs.forEach(tab => {
       if (tab) {
@@ -213,7 +264,6 @@ class TrackAIApp {
       }
     });
 
-    // Toggle active bottom nav button
     Object.entries(this.navButtons).forEach(([key, btn]) => {
       if (btn) {
         if (key === tabId) {
@@ -224,18 +274,11 @@ class TrackAIApp {
       }
     });
 
-    // Handle Camera Lifecycle
     if (tabId === "tabTrack") {
-      // Entering tracking: ensure camera is on
-      if (!this.recorder.mediaStream && this.appState !== "review") {
-        await this.startLiveCamera();
-      } else {
-        this.syncCanvasDimensions();
-      }
+      this.renderFullTrackSessionGrid();
     } else {
-      // Leaving tracking: pause camera to save battery if we aren't recording
-      if (this.appState !== "recording" && this.recorder.mediaStream) {
-        // Keep stream ready or suspend video play
+      if (this.trackViewMode === "stage" && this.appState !== "recording") {
+        this.recorder.stopCamera();
       }
     }
 
@@ -244,22 +287,187 @@ class TrackAIApp {
     }
   }
 
-  async loadSampleVideo() {
-    this.recorder.stopCamera();
-    this.closeSourceModal();
-    const promptEl = document.getElementById("cameraPermissionPrompt");
-    if (promptEl) promptEl.style.display = "none";
+  // =======================================================
+  // FULLTRACK SESSION BROWSER & MODAL
+  // =======================================================
 
-    this.video.srcObject = null;
-    this.video.src = "/samples/sample_bowling.mp4";
-    this.video.loop = true;
-    this.appState = "calibrate";
-    this.updateUIState();
-    this.video.play().catch(e => console.warn("Sample play caught:", e));
+  renderFullTrackSessionGrid() {
+    if (!this.ftSessionsGrid) return;
+    const sessions = this.sessionMgr.getAllSessions();
+
+    this.ftSessionsGrid.innerHTML = "";
+    sessions.forEach(sess => {
+      const card = document.createElement("div");
+      card.className = "ft-session-card";
+      
+      const isResume = sess.status === "in_progress" || sess.deliveries.length > 0;
+      const count = sess.deliveries ? sess.deliveries.length : 0;
+      const bowlerCount = sess.bowlers ? sess.bowlers.length : 1;
+
+      card.innerHTML = `
+        <div class="ft-card-pitch-art"></div>
+        <div class="ft-card-bowler-silhouette"></div>
+        ${isResume ? `<span class="ft-resume-badge">Resume</span>` : ""}
+        <div class="ft-card-info">
+          <span class="ft-card-title">${sess.name}</span>
+          <span class="ft-card-date">${sess.date}</span>
+          <span class="ft-card-time">${sess.time}</span>
+          <span class="ft-card-ball-badge">${sess.ballType} • ${count} balls • ${bowlerCount} bowlers</span>
+        </div>
+      `;
+
+      card.addEventListener("click", () => {
+        this.resumeSession(sess.id);
+      });
+
+      this.ftSessionsGrid.appendChild(card);
+    });
   }
 
+  openCreateSessionModal() {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("en-GB").replace(/\//g, "-");
+    const dayStr = now.toLocaleDateString("en-GB", { weekday: "short" });
+    this.inputSessionName.value = `Session ${dayStr} ${dateStr}`;
+
+    this.renderBowlerRosterInputs();
+    this.modalCreateSession.style.display = "flex";
+  }
+
+  renderBowlerRosterInputs() {
+    if (!this.bowlersRosterList) return;
+    this.bowlersRosterList.innerHTML = "";
+
+    this.createSessionBowlers.forEach((b, idx) => {
+      const row = document.createElement("div");
+      row.className = "bowler-row-item";
+      row.innerHTML = `
+        <span class="bowler-order-badge">${idx + 1}</span>
+        <input type="text" class="bowler-name-input" data-idx="${idx}" value="${b.name}" placeholder="Bowler Name">
+        <div class="bowler-style-toggle">
+          <button type="button" class="style-toggle-btn ${b.style === 'fast' ? 'active' : ''}" data-style="fast" data-idx="${idx}">⚡ Fast</button>
+          <button type="button" class="style-toggle-btn ${b.style === 'spin' ? 'active' : ''}" data-style="spin" data-idx="${idx}">🔄 Spin</button>
+        </div>
+        ${this.createSessionBowlers.length > 1 ? `<button type="button" class="btn-del-bowler" data-del="${idx}">✕</button>` : ""}
+      `;
+
+      row.querySelector(".bowler-name-input").addEventListener("input", (e) => {
+        this.createSessionBowlers[idx].name = e.target.value.trim() || `Bowler ${idx + 1}`;
+      });
+
+      row.querySelectorAll(".style-toggle-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const style = btn.getAttribute("data-style");
+          this.createSessionBowlers[idx].style = style;
+          this.renderBowlerRosterInputs();
+        });
+      });
+
+      const delBtn = row.querySelector(`[data-del="${idx}"]`);
+      if (delBtn) {
+        delBtn.addEventListener("click", () => {
+          this.createSessionBowlers.splice(idx, 1);
+          this.renderBowlerRosterInputs();
+        });
+      }
+
+      this.bowlersRosterList.appendChild(row);
+    });
+  }
+
+  addBowlerRow() {
+    const nextNum = this.createSessionBowlers.length + 1;
+    this.createSessionBowlers.push({
+      id: `b_${Date.now()}_${nextNum}`,
+      name: `Bowler ${nextNum}`,
+      style: nextNum % 2 === 0 ? "spin" : "fast"
+    });
+    this.renderBowlerRosterInputs();
+  }
+
+  handleCreateSessionSubmit() {
+    const sessionName = this.inputSessionName.value.trim() || "Net Session";
+    const session = this.sessionMgr.createSession({
+      name: sessionName,
+      ballType: this.selectedBallType,
+      bowlers: this.createSessionBowlers
+    });
+
+    this.modalCreateSession.style.display = "none";
+    this.startSessionLiveStage(session);
+  }
+
+  resumeSession(sessionId) {
+    const session = this.sessionMgr.setActiveSession(sessionId);
+    if (session) {
+      this.startSessionLiveStage(session);
+    }
+  }
+
+  async startSessionLiveStage(session) {
+    this.trackViewMode = "stage";
+    this.trackSessionBrowser.style.display = "none";
+    this.stageContainer.style.display = "block";
+
+    this.updateActiveBowlerHUD();
+    this.updateRecordingsBadge();
+
+    // Start live back camera for this session
+    await this.startLiveCamera();
+  }
+
+  exitLiveStageToBrowser() {
+    this.trackViewMode = "browser";
+    this.stageContainer.style.display = "none";
+    this.trackSessionBrowser.style.display = "block";
+    this.recorder.stopCamera();
+    this.renderFullTrackSessionGrid();
+  }
+
+  updateActiveBowlerHUD() {
+    const bowler = this.sessionMgr.getCurrentBowler();
+    const session = this.sessionMgr.getActiveSession();
+    const ballNum = session ? (session.deliveries.length + 1) : 1;
+
+    this.hudBowlerIcon.textContent = bowler.style === "spin" ? "🔄" : "⚡";
+    this.hudBowlerName.textContent = bowler.name;
+    this.hudBowlerStyle.textContent = `${bowler.style.toUpperCase()} • Ball #${ballNum}`;
+  }
+
+  openSwitchBowlerModal() {
+    const session = this.sessionMgr.getActiveSession();
+    if (!session || !session.bowlers) return;
+
+    this.switchBowlerList.innerHTML = "";
+    session.bowlers.forEach((b, idx) => {
+      const isCurrent = idx === this.sessionMgr.currentBowlerIndex;
+      const item = document.createElement("button");
+      item.className = `modal-option-btn ${isCurrent ? 'active' : ''}`;
+      item.innerHTML = `
+        <span class="opt-icon">${b.style === 'spin' ? '🔄' : '⚡'}</span>
+        <div class="opt-text">
+          <strong>${b.name} (${b.style.toUpperCase()})</strong>
+          <small>Bowler #${idx + 1} in order</small>
+        </div>
+      `;
+
+      item.addEventListener("click", () => {
+        this.sessionMgr.setBowlerIndex(idx);
+        this.updateActiveBowlerHUD();
+        this.modalSwitchBowler.style.display = "none";
+      });
+
+      this.switchBowlerList.appendChild(item);
+    });
+
+    this.modalSwitchBowler.style.display = "flex";
+  }
+
+  // =======================================================
+  // CAMERA & PITCH CALIBRATION ENGINE
+  // =======================================================
+
   async startLiveCamera() {
-    this.closeSourceModal();
     this.updateHint("Starting back camera...");
     const promptEl = document.getElementById("cameraPermissionPrompt");
 
@@ -286,19 +494,6 @@ class TrackAIApp {
       this.appState = "calibrate";
     }
 
-    this.updateUIState();
-  }
-
-  handleFileUpload(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    this.recorder.stopCamera();
-    this.closeSourceModal();
-    this.video.srcObject = null;
-    this.video.src = URL.createObjectURL(file);
-    this.video.loop = true;
-    this.appState = "calibrate";
     this.updateUIState();
   }
 
@@ -338,7 +533,6 @@ class TrackAIApp {
       left = (containerW - displayW) / 2;
     }
 
-    // Lock both video and canvas to the exact same physical coordinates
     video.style.position = "absolute";
     video.style.width = `${displayW}px`;
     video.style.height = `${displayH}px`;
@@ -372,19 +566,6 @@ class TrackAIApp {
     this.updateUIState();
   }
 
-  setBowlerEnd(end) {
-    this.state.setBowlerEnd(end);
-    if (end === "bottom") {
-      this.segBowlerBottom.classList.add("active");
-      this.segBowlerTop.classList.remove("active");
-    } else {
-      this.segBowlerTop.classList.add("active");
-      this.segBowlerBottom.classList.remove("active");
-    }
-    this.canvasController.render();
-    this.renderOverlay();
-  }
-
   async handleMainAction() {
     if (this.appState === "calibrate") {
       const res = this.state.confirm();
@@ -399,6 +580,9 @@ class TrackAIApp {
     } else if (this.appState === "recording") {
       this.stopRecordingDelivery();
     } else if (this.appState === "review") {
+      // Rotate to next bowler in rotation for next ball
+      this.sessionMgr.rotateBowler();
+      this.updateActiveBowlerHUD();
       this.updateHint("Restarting camera for next delivery...");
       await this.startLiveCamera();
     }
@@ -427,27 +611,21 @@ class TrackAIApp {
   stopRecordingDelivery() {
     clearInterval(this.recTimerInterval);
     this.recorder.stopRecording();
-    this.updateHint("Saving delivery with fixed pitch zones...");
+    this.updateHint("Saving delivery to active session...");
   }
 
   onDeliveryRecorded(blob, url) {
-    const deliveryIndex = this.savedRecordings.length + 1;
     const duration = this.recorder.getRecordingDurationSeconds() || 3.5;
 
-    const recordingItem = {
-      id: `delivery_${Date.now()}`,
-      title: `Delivery #${deliveryIndex}`,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    // Save into active session with current bowler & style
+    const delivery = this.sessionMgr.addDelivery({
       duration: `${duration.toFixed(1)}s`,
       blob,
       url,
       calibration: this.state.exportNormalized()
-    };
+    });
 
-    this.savedRecordings.push(recordingItem);
-    this.activeRecordingIndex = this.savedRecordings.length - 1;
-
-    // Load recorded video into player
+    // Load recorded video into player for review
     this.video.srcObject = null;
     this.video.src = url;
     this.video.loop = true;
@@ -503,13 +681,14 @@ class TrackAIApp {
       this.recIndicator.style.display = "flex";
       this.playbackTimeline.style.display = "none";
     } else if (this.appState === "review") {
+      const bowler = this.sessionMgr.getCurrentBowler();
       this.statusDot.className = "status-dot";
       this.statusTitle.textContent = "DELIVERY SAVED";
-      this.statusSubtitle.textContent = "Reviewing pitch zones";
+      this.statusSubtitle.textContent = `${bowler.name} • ${bowler.style.toUpperCase()}`;
 
       this.mainActionText.textContent = "NEXT DELIVERY";
       this.btnMainAction.className = "main-action-pill";
-      this.bottomHint.textContent = "Tap right button to view all saved recordings";
+      this.bottomHint.textContent = "Delivery saved to session • Tap Next Delivery";
 
       this.calibCanvas.style.display = "none";
       this.overlayCanvas.style.display = "block";
@@ -525,36 +704,33 @@ class TrackAIApp {
   }
 
   updateRecordingsBadge() {
-    const count = this.savedRecordings.length;
+    const session = this.sessionMgr.getActiveSession();
+    const count = session && session.deliveries ? session.deliveries.length : 0;
     if (this.recordingsCountBadge) this.recordingsCountBadge.textContent = count;
-    if (this.drawerCountBadge) this.drawerCountBadge.textContent = `${count} recorded`;
+    if (this.drawerCountBadge) this.drawerCountBadge.textContent = `${count} balls`;
+    if (this.sessionDrawerTitle) this.sessionDrawerTitle.textContent = session ? session.name : "Session Deliveries";
   }
 
   openRecordingsDrawer() {
     this.recordingsDrawer.style.display = "flex";
-    this.renderRecordingsList();
+    this.renderSessionDeliveriesList();
   }
 
   closeRecordingsDrawer() {
     this.recordingsDrawer.style.display = "none";
   }
 
-  openSourceModal() {
-    this.sourceModal.style.display = "flex";
-  }
+  renderSessionDeliveriesList() {
+    const session = this.sessionMgr.getActiveSession();
+    const deliveries = session ? session.deliveries || [] : [];
 
-  closeSourceModal() {
-    this.sourceModal.style.display = "none";
-  }
-
-  renderRecordingsList() {
-    if (this.savedRecordings.length === 0) {
+    if (deliveries.length === 0) {
       this.recordingsEmptyState.style.display = "block";
       this.recordingsList.innerHTML = `
         <div class="empty-state">
           <span class="empty-icon">🏏</span>
-          <p>No recorded deliveries yet.</p>
-          <small>Calibrate the pitch and tap "START TRACKING" to record a delivery.</small>
+          <p>No recorded deliveries yet in ${session ? session.name : 'this session'}.</p>
+          <small>Tap "START TRACKING" to record a delivery.</small>
         </div>
       `;
       return;
@@ -563,33 +739,30 @@ class TrackAIApp {
     this.recordingsEmptyState.style.display = "none";
     this.recordingsList.innerHTML = "";
 
-    this.savedRecordings.forEach((rec, idx) => {
+    deliveries.forEach((del, idx) => {
       const card = document.createElement("div");
       card.className = "delivery-card";
       card.innerHTML = `
         <div class="delivery-info">
-          <span class="delivery-title">${rec.title}</span>
-          <span class="delivery-meta">${rec.time} • ${rec.duration}</span>
+          <span class="delivery-title">Ball #${del.ballNumber} • ${del.bowler.name} (${del.bowler.style === 'spin' ? '🔄 Spin' : '⚡ Fast'})</span>
+          <span class="delivery-meta">${del.time} • ${del.speed} km/h • ${del.lengthZone}</span>
         </div>
         <div class="delivery-actions">
-          <button class="btn-card-action" data-play="${idx}">▶ Review</button>
-          <button class="btn-card-action" style="background:#475569;" data-dl="${idx}">⬇ Save</button>
-          <button class="btn-card-del" data-del="${idx}">🗑</button>
+          ${del.url ? `<button class="btn-card-action" data-play="${idx}">▶ Review</button>` : ""}
+          ${del.url ? `<button class="btn-card-action" style="background:#475569;" data-dl="${idx}">⬇</button>` : ""}
         </div>
       `;
 
-      card.querySelector(`[data-play="${idx}"]`).addEventListener("click", () => {
-        this.playSavedRecording(idx);
-        this.closeRecordingsDrawer();
-      });
+      if (del.url) {
+        card.querySelector(`[data-play="${idx}"]`).addEventListener("click", () => {
+          this.playSavedDelivery(del);
+          this.closeRecordingsDrawer();
+        });
 
-      card.querySelector(`[data-dl="${idx}"]`).addEventListener("click", () => {
-        this.downloadRecording(idx);
-      });
-
-      card.querySelector(`[data-del="${idx}"]`).addEventListener("click", () => {
-        this.deleteRecording(idx);
-      });
+        card.querySelector(`[data-dl="${idx}"]`).addEventListener("click", () => {
+          this.downloadDelivery(del);
+        });
+      }
 
       this.recordingsList.appendChild(card);
     });
@@ -597,61 +770,54 @@ class TrackAIApp {
 
   renderTabSessionsList() {
     if (!this.tabSessionsList) return;
-
-    if (this.savedRecordings.length === 0) {
-      this.tabSessionsList.innerHTML = `
-        <div class="insights-card" style="text-align: center; padding: 32px 16px;">
-          <span style="font-size: 36px; display: block; margin-bottom: 8px;">🏏</span>
-          <h4 style="font-size: 16px; margin-bottom: 6px;">No Session Deliveries Yet</h4>
-          <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">Switch to the Track tab to record your deliveries with pitch calibration.</p>
-          <button class="hero-cta-btn" id="btnGoToTrackSessions" style="margin: 0 auto;">Go to Track →</button>
-        </div>
-      `;
-      const btn = document.getElementById("btnGoToTrackSessions");
-      if (btn) btn.addEventListener("click", () => this.switchTab("tabTrack"));
-      return;
-    }
+    const sessions = this.sessionMgr.getAllSessions();
 
     this.tabSessionsList.innerHTML = "";
-    this.savedRecordings.forEach((rec, idx) => {
+    sessions.forEach(sess => {
       const card = document.createElement("div");
-      card.className = "delivery-card";
-      card.style.background = "#ffffff";
+      card.className = "insights-card";
+      card.style.marginBottom = "14px";
+
+      const ballCount = sess.deliveries ? sess.deliveries.length : 0;
+      const bowlerList = sess.bowlers ? sess.bowlers.map(b => `${b.name} (${b.style === 'spin' ? '🔄' : '⚡'})`).join(", ") : "Srinivas";
+
       card.innerHTML = `
-        <div class="delivery-info">
-          <span class="delivery-title">${rec.title}</span>
-          <span class="delivery-meta">${rec.time} • ${rec.duration} • Good Length (Pitch Locked)</span>
+        <div class="insights-card-header">
+          <div>
+            <h4 style="font-size: 16px; margin-bottom: 2px;">${sess.name}</h4>
+            <span style="font-size: 12px; color: #64748b;">${sess.date} • ${sess.time} • ${sess.ballType}</span>
+          </div>
+          <button class="view-analysis-pill-btn" data-resumesess="${sess.id}">
+            <span>Open Session</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0066ff" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
         </div>
-        <div class="delivery-actions">
-          <button class="btn-card-action" data-tabplay="${idx}">▶ Review</button>
-          <button class="btn-card-action" style="background:#475569;" data-tabdl="${idx}">⬇</button>
+        <div style="font-size: 12.5px; color: #334155; margin-bottom: 8px;">
+          <strong>Bowlers:</strong> ${bowlerList}
+        </div>
+        <div style="font-size: 12px; color: #0284c7; font-weight: 700;">
+          ${ballCount} deliveries recorded
         </div>
       `;
 
-      card.querySelector(`[data-tabplay="${idx}"]`).addEventListener("click", () => {
-        this.playSavedRecording(idx);
+      card.querySelector(`[data-resumesess="${sess.id}"]`).addEventListener("click", () => {
         this.switchTab("tabTrack");
-      });
-
-      card.querySelector(`[data-tabdl="${idx}"]`).addEventListener("click", () => {
-        this.downloadRecording(idx);
+        this.resumeSession(sess.id);
       });
 
       this.tabSessionsList.appendChild(card);
     });
   }
 
-  playSavedRecording(idx) {
-    const rec = this.savedRecordings[idx];
-    if (!rec) return;
+  playSavedDelivery(del) {
+    if (!del.url) return;
 
-    this.activeRecordingIndex = idx;
-    if (rec.calibration) {
-      this.state.importNormalized(rec.calibration);
+    if (del.calibration) {
+      this.state.importNormalized(del.calibration);
     }
 
     this.video.srcObject = null;
-    this.video.src = rec.url;
+    this.video.src = del.url;
     this.video.loop = true;
     this.video.play().catch(e => console.warn("Review play:", e));
 
@@ -659,21 +825,12 @@ class TrackAIApp {
     this.updateUIState();
   }
 
-  downloadRecording(idx) {
-    const rec = this.savedRecordings[idx];
-    if (!rec) return;
-
+  downloadDelivery(del) {
+    if (!del.url) return;
     const a = document.createElement("a");
-    a.href = rec.url;
-    a.download = `cricket_delivery_${idx + 1}_${Date.now()}.webm`;
+    a.href = del.url;
+    a.download = `delivery_${del.ballNumber}_${del.bowler.name}_${Date.now()}.webm`;
     a.click();
-  }
-
-  deleteRecording(idx) {
-    this.savedRecordings.splice(idx, 1);
-    this.updateRecordingsBadge();
-    this.renderRecordingsList();
-    this.renderTabSessionsList();
   }
 
   togglePlayPause() {
@@ -728,7 +885,7 @@ class TrackAIApp {
         if (this.valFPS) this.valFPS.textContent = this.currentFps;
       }
 
-      if (this.activeTab === "tabTrack" && !this.video.paused && !this.video.ended && this.appState === "review") {
+      if (this.activeTab === "tabTrack" && this.trackViewMode === "stage" && !this.video.paused && !this.video.ended && this.appState === "review") {
         this.renderOverlay();
       }
       requestAnimationFrame(loop);
