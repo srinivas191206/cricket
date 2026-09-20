@@ -1,10 +1,11 @@
 /**
- * Cricket Pitch Calibration & Video Tracking Application Main Entry Point
- * Designed to match the exact mobile UI from the reference screenshot:
- * - Top-left status pill ("PITCH CALIBRATED - Ready for tracking")
- * - 3 Metric cards (Pitch 22yd, Camera Locked, FPS)
- * - Main action pill button ("START TRACKING")
- * - Right-side small button for Saved Recordings drawer
+ * TrackAI - Main Application Controller
+ * 4-Tab Navigation (Home, Track, Sessions, Insights)
+ * Features:
+ * - Home dashboard matching user's reference screenshot
+ * - Top-right profile drawer
+ * - Dedicated Track tab hosting the pitch calibration & recording engine
+ * - Multi-delivery recording & persistent calibration
  */
 
 import { CalibrationState } from "./calibration_state.js";
@@ -12,8 +13,9 @@ import { CalibrationCanvas } from "./calibration_canvas.js";
 import { PitchOverlay } from "./pitch_overlay.js";
 import { VideoRecorder } from "./recorder.js";
 
-class PitchApp {
+class TrackAIApp {
   constructor() {
+    // DOM Elements - Video & Stages
     this.video = document.getElementById("mainVideo");
     this.calibCanvas = document.getElementById("calibrationCanvas");
     this.overlayCanvas = document.getElementById("overlayCanvas");
@@ -31,7 +33,8 @@ class PitchApp {
       (blob, url) => this.onDeliveryRecorded(blob, url)
     );
 
-    // App State
+    // App & Tab State
+    this.activeTab = "tabHome"; // "tabHome" | "tabTrack" | "tabSessions" | "tabInsights"
     this.appState = "calibrate"; // "calibrate" | "ready" | "recording" | "review"
     this.savedRecordings = [];
     this.activeRecordingIndex = -1;
@@ -40,14 +43,38 @@ class PitchApp {
     // FPS calculation
     this.lastFrameTime = performance.now();
     this.frameCount = 0;
-    this.currentFps = 30;
+    this.currentFps = 48;
 
     this.bindDomElements();
     this.init();
   }
 
   bindDomElements() {
-    // Top Bar elements
+    // Tabs & Navigation
+    this.tabHome = document.getElementById("tabHome");
+    this.tabTrack = document.getElementById("tabTrack");
+    this.tabSessions = document.getElementById("tabSessions");
+    this.tabInsights = document.getElementById("tabInsights");
+
+    this.navButtons = {
+      tabHome: document.getElementById("navHome"),
+      tabTrack: document.getElementById("navTrack"),
+      tabSessions: document.getElementById("navSessions"),
+      tabInsights: document.getElementById("navInsights"),
+    };
+
+    // Home Tab Buttons
+    this.btnHeroStartTracking = document.getElementById("btnHeroStartTracking");
+    this.btnOpenProfile = document.getElementById("btnOpenProfile");
+    this.profileDrawer = document.getElementById("profileDrawer");
+    this.btnCloseProfileDrawer = document.getElementById("btnCloseProfileDrawer");
+
+    this.btnViewRecentAnalysis = document.getElementById("btnViewRecentAnalysis");
+    this.btnSeeProgressDetails = document.getElementById("btnSeeProgressDetails");
+    this.btnViewAllWeek = document.getElementById("btnViewAllWeek");
+    this.btnViewAllSessionsCarousel = document.getElementById("btnViewAllSessionsCarousel");
+
+    // Track Tab Overlays & Controls
     this.statusPill = document.getElementById("statusPill");
     this.statusDot = document.getElementById("statusDot");
     this.statusTitle = document.getElementById("statusTitle");
@@ -55,18 +82,15 @@ class PitchApp {
     this.valFPS = document.getElementById("valFPS");
     this.btnSourceMenu = document.getElementById("btnSourceMenu");
 
-    // Action Controls
     this.btnMainAction = document.getElementById("btnMainAction");
     this.mainActionText = document.getElementById("mainActionText");
     this.btnOpenRecordings = document.getElementById("btnOpenRecordings");
     this.recordingsCountBadge = document.getElementById("recordingsCountBadge");
     this.bottomHint = document.getElementById("bottomHint");
 
-    // Live Recording Pill
     this.recIndicator = document.getElementById("recIndicator");
     this.recTimerText = document.getElementById("recTimerText");
 
-    // Playback timeline
     this.playbackTimeline = document.getElementById("playbackTimeline");
     this.btnPlayPause = document.getElementById("btnPlayPause");
     this.videoScrubber = document.getElementById("videoScrubber");
@@ -87,10 +111,45 @@ class PitchApp {
     this.recordingsList = document.getElementById("recordingsList");
     this.recordingsEmptyState = document.getElementById("recordingsEmptyState");
     this.drawerCountBadge = document.getElementById("drawerCountBadge");
+    this.tabSessionsList = document.getElementById("tabSessionsList");
 
     this.btnGrantCamera = document.getElementById("btnGrantCamera");
     if (this.btnGrantCamera) {
       this.btnGrantCamera.addEventListener("click", () => this.startLiveCamera());
+    }
+
+    // Attach Event Listeners
+    // Bottom Tab Bar
+    Object.entries(this.navButtons).forEach(([tabKey, btn]) => {
+      if (btn) {
+        btn.addEventListener("click", () => this.switchTab(tabKey));
+      }
+    });
+
+    // Home Action Handlers
+    this.btnHeroStartTracking.addEventListener("click", () => {
+      this.switchTab("tabTrack");
+    });
+
+    this.btnOpenProfile.addEventListener("click", () => {
+      this.profileDrawer.style.display = "flex";
+    });
+
+    this.btnCloseProfileDrawer.addEventListener("click", () => {
+      this.profileDrawer.style.display = "none";
+    });
+
+    if (this.btnViewRecentAnalysis) {
+      this.btnViewRecentAnalysis.addEventListener("click", () => this.switchTab("tabInsights"));
+    }
+    if (this.btnSeeProgressDetails) {
+      this.btnSeeProgressDetails.addEventListener("click", () => this.switchTab("tabInsights"));
+    }
+    if (this.btnViewAllWeek) {
+      this.btnViewAllWeek.addEventListener("click", () => this.switchTab("tabSessions"));
+    }
+    if (this.btnViewAllSessionsCarousel) {
+      this.btnViewAllSessionsCarousel.addEventListener("click", () => this.switchTab("tabSessions"));
     }
 
     // Allow clicking status pill to re-calibrate anytime
@@ -101,7 +160,7 @@ class PitchApp {
       }
     });
 
-    // Event Listeners
+    // Track Controls
     this.btnMainAction.addEventListener("click", () => this.handleMainAction());
     this.btnOpenRecordings.addEventListener("click", () => this.openRecordingsDrawer());
     this.btnSourceMenu.addEventListener("click", () => this.openSourceModal());
@@ -124,12 +183,65 @@ class PitchApp {
     this.video.addEventListener("pause", () => this.btnPlayPause.textContent = "▶");
     this.video.addEventListener("ended", () => this.btnPlayPause.textContent = "▶");
 
-    window.addEventListener("resize", () => this.syncCanvasDimensions());
+    window.addEventListener("resize", () => {
+      if (this.activeTab === "tabTrack") {
+        this.syncCanvasDimensions();
+      }
+    });
   }
 
   async init() {
-    await this.startLiveCamera();
+    this.switchTab("tabHome");
     this.startRenderLoop();
+  }
+
+  /**
+   * Switches active bottom navigation tab.
+   */
+  async switchTab(tabId) {
+    this.activeTab = tabId;
+
+    // Toggle active tab views
+    const tabs = [this.tabHome, this.tabTrack, this.tabSessions, this.tabInsights];
+    tabs.forEach(tab => {
+      if (tab) {
+        if (tab.id === tabId) {
+          tab.classList.add("active");
+        } else {
+          tab.classList.remove("active");
+        }
+      }
+    });
+
+    // Toggle active bottom nav button
+    Object.entries(this.navButtons).forEach(([key, btn]) => {
+      if (btn) {
+        if (key === tabId) {
+          btn.classList.add("active");
+        } else {
+          btn.classList.remove("active");
+        }
+      }
+    });
+
+    // Handle Camera Lifecycle
+    if (tabId === "tabTrack") {
+      // Entering tracking: ensure camera is on
+      if (!this.recorder.mediaStream && this.appState !== "review") {
+        await this.startLiveCamera();
+      } else {
+        this.syncCanvasDimensions();
+      }
+    } else {
+      // Leaving tracking: pause camera to save battery if we aren't recording
+      if (this.appState !== "recording" && this.recorder.mediaStream) {
+        // Keep stream ready or suspend video play
+      }
+    }
+
+    if (tabId === "tabSessions") {
+      this.renderTabSessionsList();
+    }
   }
 
   async loadSampleVideo() {
@@ -275,7 +387,6 @@ class PitchApp {
 
   async handleMainAction() {
     if (this.appState === "calibrate") {
-      // 1. Confirm Calibration
       const res = this.state.confirm();
       if (!res.success) {
         alert(res.message);
@@ -284,13 +395,10 @@ class PitchApp {
       this.appState = "ready";
       this.updateUIState();
     } else if (this.appState === "ready") {
-      // 2. Start Live Tracking / Recording
       this.startRecordingDelivery();
     } else if (this.appState === "recording") {
-      // 3. Stop Recording
       this.stopRecordingDelivery();
     } else if (this.appState === "review") {
-      // 4. Return to live camera for next delivery with PRESERVED calibration!
       this.updateHint("Restarting camera for next delivery...");
       await this.startLiveCamera();
     }
@@ -354,7 +462,6 @@ class PitchApp {
     const val = this.state.validate();
 
     if (this.appState === "calibrate") {
-      // Calibrating 4 points
       this.statusDot.className = val.valid ? "status-dot" : "status-dot uncalibrated";
       this.statusTitle.textContent = val.valid ? "PITCH DETECTED" : "CALIBRATING PITCH";
       this.statusSubtitle.textContent = val.valid ? "Tap Confirm Calibration" : "Drag 4 corners";
@@ -370,7 +477,6 @@ class PitchApp {
 
       this.canvasController.render();
     } else if (this.appState === "ready") {
-      // Ready for tracking (matches screenshot)
       this.statusDot.className = "status-dot";
       this.statusTitle.textContent = "PITCH CALIBRATED";
       this.statusSubtitle.textContent = "Ready for tracking";
@@ -384,7 +490,6 @@ class PitchApp {
       this.recIndicator.style.display = "none";
       this.playbackTimeline.style.display = "none";
     } else if (this.appState === "recording") {
-      // Recording delivery (completely clean screen as requested)
       this.statusDot.className = "status-dot";
       this.statusTitle.textContent = "RECORDING DELIVERY";
       this.statusSubtitle.textContent = "Tracking active";
@@ -398,7 +503,6 @@ class PitchApp {
       this.recIndicator.style.display = "flex";
       this.playbackTimeline.style.display = "none";
     } else if (this.appState === "review") {
-      // Reviewing recorded delivery with broadcast zones overlay
       this.statusDot.className = "status-dot";
       this.statusTitle.textContent = "DELIVERY SAVED";
       this.statusSubtitle.textContent = "Reviewing pitch zones";
@@ -422,8 +526,8 @@ class PitchApp {
 
   updateRecordingsBadge() {
     const count = this.savedRecordings.length;
-    this.recordingsCountBadge.textContent = count;
-    this.drawerCountBadge.textContent = `${count} recorded`;
+    if (this.recordingsCountBadge) this.recordingsCountBadge.textContent = count;
+    if (this.drawerCountBadge) this.drawerCountBadge.textContent = `${count} recorded`;
   }
 
   openRecordingsDrawer() {
@@ -491,6 +595,52 @@ class PitchApp {
     });
   }
 
+  renderTabSessionsList() {
+    if (!this.tabSessionsList) return;
+
+    if (this.savedRecordings.length === 0) {
+      this.tabSessionsList.innerHTML = `
+        <div class="insights-card" style="text-align: center; padding: 32px 16px;">
+          <span style="font-size: 36px; display: block; margin-bottom: 8px;">🏏</span>
+          <h4 style="font-size: 16px; margin-bottom: 6px;">No Session Deliveries Yet</h4>
+          <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">Switch to the Track tab to record your deliveries with pitch calibration.</p>
+          <button class="hero-cta-btn" id="btnGoToTrackSessions" style="margin: 0 auto;">Go to Track →</button>
+        </div>
+      `;
+      const btn = document.getElementById("btnGoToTrackSessions");
+      if (btn) btn.addEventListener("click", () => this.switchTab("tabTrack"));
+      return;
+    }
+
+    this.tabSessionsList.innerHTML = "";
+    this.savedRecordings.forEach((rec, idx) => {
+      const card = document.createElement("div");
+      card.className = "delivery-card";
+      card.style.background = "#ffffff";
+      card.innerHTML = `
+        <div class="delivery-info">
+          <span class="delivery-title">${rec.title}</span>
+          <span class="delivery-meta">${rec.time} • ${rec.duration} • Good Length (Pitch Locked)</span>
+        </div>
+        <div class="delivery-actions">
+          <button class="btn-card-action" data-tabplay="${idx}">▶ Review</button>
+          <button class="btn-card-action" style="background:#475569;" data-tabdl="${idx}">⬇</button>
+        </div>
+      `;
+
+      card.querySelector(`[data-tabplay="${idx}"]`).addEventListener("click", () => {
+        this.playSavedRecording(idx);
+        this.switchTab("tabTrack");
+      });
+
+      card.querySelector(`[data-tabdl="${idx}"]`).addEventListener("click", () => {
+        this.downloadRecording(idx);
+      });
+
+      this.tabSessionsList.appendChild(card);
+    });
+  }
+
   playSavedRecording(idx) {
     const rec = this.savedRecordings[idx];
     if (!rec) return;
@@ -523,6 +673,7 @@ class PitchApp {
     this.savedRecordings.splice(idx, 1);
     this.updateRecordingsBadge();
     this.renderRecordingsList();
+    this.renderTabSessionsList();
   }
 
   togglePlayPause() {
@@ -569,7 +720,6 @@ class PitchApp {
 
   startRenderLoop() {
     const loop = (now) => {
-      // Calculate real FPS
       this.frameCount++;
       if (now - this.lastFrameTime >= 1000) {
         this.currentFps = this.frameCount;
@@ -578,7 +728,7 @@ class PitchApp {
         if (this.valFPS) this.valFPS.textContent = this.currentFps;
       }
 
-      if (!this.video.paused && !this.video.ended && this.appState === "review") {
+      if (this.activeTab === "tabTrack" && !this.video.paused && !this.video.ended && this.appState === "review") {
         this.renderOverlay();
       }
       requestAnimationFrame(loop);
@@ -588,5 +738,5 @@ class PitchApp {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-  new PitchApp();
+  new TrackAIApp();
 });
