@@ -283,16 +283,51 @@ class TrackAIApp {
     const sessions = this.sessionMgr.getAllSessions();
 
     this.ftSessionsGrid.innerHTML = "";
+
+    if (sessions.length === 0) {
+      const emptyCard = document.createElement("div");
+      emptyCard.className = "pro-empty-sessions-card";
+      emptyCard.innerHTML = `
+        <div class="pro-empty-illustration">
+          <img src="/images/session_pitch_card.jpg" alt="Cricket Pitch" class="pro-empty-banner-img">
+          <div class="pro-empty-banner-overlay"></div>
+          <div class="pro-empty-badge">FULLTRACK SESSIONS</div>
+        </div>
+        <div class="pro-empty-content">
+          <h4>No Sessions Recorded</h4>
+          <p>Tap the + button to create a new bowling session and calibrate the pitch.</p>
+          <button type="button" class="pro-empty-cta-btn" id="btnEmptyCreateSession">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            <span>Create First Session</span>
+          </button>
+        </div>
+      `;
+
+      emptyCard.querySelector("#btnEmptyCreateSession").addEventListener("click", () => {
+        this.openCreateSessionModal();
+      });
+
+      this.ftSessionsGrid.appendChild(emptyCard);
+
+      const countText = document.getElementById("ftSessionCountText");
+      if (countText) {
+        countText.textContent = `0 recorded`;
+      }
+      return;
+    }
+
     sessions.forEach(sess => {
       const card = document.createElement("div");
       card.className = "pro-session-card";
       
-      const isResume = sess.status === "in_progress" || sess.deliveries.length > 0;
+      const isResume = sess.status === "in_progress" || (sess.deliveries && sess.deliveries.length > 0);
       const count = sess.deliveries ? sess.deliveries.length : 0;
       const bowlerCount = sess.bowlers ? sess.bowlers.length : 1;
 
       card.innerHTML = `
         <div class="pro-card-pitch-header">
+          <img src="/images/session_pitch_card.jpg" alt="Cricket Pitch" class="pro-card-pitch-img">
+          <div class="pro-card-pitch-overlay"></div>
           ${isResume ? `<span class="pro-resume-badge">Resume</span>` : ""}
         </div>
         <div class="pro-card-body">
@@ -768,15 +803,51 @@ class TrackAIApp {
     const sessions = this.sessionMgr.getAllSessions();
 
     this.tabSessionsList.innerHTML = "";
+
+    if (sessions.length === 0) {
+      const emptyDiv = document.createElement("div");
+      emptyDiv.className = "pro-empty-sessions-card";
+      emptyDiv.style.margin = "10px 0 20px 0";
+      emptyDiv.innerHTML = `
+        <div class="pro-empty-illustration">
+          <img src="/images/session_pitch_card.jpg" alt="Cricket Pitch" class="pro-empty-banner-img">
+          <div class="pro-empty-banner-overlay"></div>
+          <div class="pro-empty-badge">SESSION LOGS</div>
+        </div>
+        <div class="pro-empty-content">
+          <h4>No Bowling Sessions</h4>
+          <p>Deliveries and stats will appear here once you track a bowling session.</p>
+          <button type="button" class="pro-empty-cta-btn" id="btnTabSessionsCreate">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            <span>Start Session in Track</span>
+          </button>
+        </div>
+      `;
+
+      emptyDiv.querySelector("#btnTabSessionsCreate").addEventListener("click", () => {
+        this.switchTab("tabTrack");
+        this.openCreateSessionModal();
+      });
+
+      this.tabSessionsList.appendChild(emptyDiv);
+      return;
+    }
+
     sessions.forEach(sess => {
       const card = document.createElement("div");
       card.className = "insights-card";
       card.style.marginBottom = "14px";
+      card.style.overflow = "hidden";
 
       const ballCount = sess.deliveries ? sess.deliveries.length : 0;
       const bowlerList = sess.bowlers ? sess.bowlers.map(b => `${b.name} (${b.style.toUpperCase()})`).join(", ") : "Srinivas";
 
       card.innerHTML = `
+        <div style="height: 100px; position: relative; overflow: hidden; margin: -16px -16px 14px -16px;">
+          <img src="/images/session_pitch_card.jpg" style="width: 100%; height: 100%; object-fit: cover;" alt="Session Cover">
+          <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.5) 100%);"></div>
+          <span style="position: absolute; bottom: 8px; left: 12px; color: #ffffff; font-size: 11px; font-weight: 800; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); padding: 2px 8px; border-radius: 4px;">${sess.date}</span>
+        </div>
         <div class="insights-card-header">
           <div>
             <h4 style="font-size: 16px; margin-bottom: 2px;">${sess.name}</h4>

@@ -6,22 +6,19 @@
 
 export class SessionManager {
   constructor() {
-    this.storageKey = "trackai_pro_sessions_v2";
+    this.storageKey = "trackai_real_sessions_v1";
     this.sessions = [];
     this.activeSessionId = null;
     this.currentBowlerIndex = 0;
 
     this.load();
-    if (this.sessions.length === 0) {
-      this.initDefaultSessions();
-    }
   }
 
   load() {
     try {
       const data = localStorage.getItem(this.storageKey);
       if (data) {
-        this.sessions = JSON.parse(data);
+        this.sessions = JSON.parse(data).filter(s => !s.id.startsWith("sess_sample_"));
       }
     } catch (e) {
       console.warn("SessionManager load failed:", e);
@@ -43,63 +40,6 @@ export class SessionManager {
     } catch (e) {
       console.warn("SessionManager save failed:", e);
     }
-  }
-
-  initDefaultSessions() {
-    this.sessions = [
-      {
-        id: "sess_sample_1",
-        name: "Morning Net Session",
-        date: "22-07-2024",
-        time: "04:02 PM",
-        dateGroup: "22 Jul 2024",
-        status: "in_progress",
-        bowlers: [
-          { id: "b1", name: "Srinivas", style: "fast" },
-          { id: "b2", name: "Rahul", style: "spin" }
-        ],
-        deliveries: []
-      },
-      {
-        id: "sess_sample_2",
-        name: "Match Simulation",
-        date: "22-07-2024",
-        time: "04:01 PM",
-        dateGroup: "22 Jul 2024",
-        status: "completed",
-        bowlers: [
-          { id: "b1", name: "Srinivas", style: "fast" }
-        ],
-        deliveries: []
-      },
-      {
-        id: "sess_sample_3",
-        name: "Target Length Practice",
-        date: "22-07-2024",
-        time: "04:01 PM",
-        dateGroup: "22 Jul 2024",
-        status: "completed",
-        bowlers: [
-          { id: "b1", name: "Vikram", style: "fast" },
-          { id: "b2", name: "Amit", style: "spin" }
-        ],
-        deliveries: []
-      },
-      {
-        id: "sess_sample_4",
-        name: "Death Overs Yorkers",
-        date: "22-07-2024",
-        time: "04:01 PM",
-        dateGroup: "22 Jul 2024",
-        status: "completed",
-        bowlers: [
-          { id: "b1", name: "Srinivas", style: "fast" }
-        ],
-        deliveries: []
-      }
-    ];
-
-    this.save();
   }
 
   /**
