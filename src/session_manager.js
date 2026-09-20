@@ -1,12 +1,12 @@
 /**
- * TrackAI / FullTrack Session & Bowler Management Engine
- * Manages cricket sessions, ball specifications, multi-bowler rosters,
- * bowling order, bowling style (Fast vs Spin), and delivery archives.
+ * TrackAI - Professional Session & Bowler Management Engine
+ * Clean, lightweight, professional architecture without AI gimmicks.
+ * Manages cricket sessions, multi-bowler rosters, and delivery records.
  */
 
 export class SessionManager {
   constructor() {
-    this.storageKey = "trackai_sessions_data";
+    this.storageKey = "trackai_pro_sessions_v2";
     this.sessions = [];
     this.activeSessionId = null;
     this.currentBowlerIndex = 0;
@@ -31,13 +31,12 @@ export class SessionManager {
 
   save() {
     try {
-      // Don't save blobs/URLs in localStorage directly, only metadata
       const serializable = this.sessions.map(s => ({
         ...s,
         deliveries: (s.deliveries || []).map(d => ({
           ...d,
           blob: null,
-          url: null // URLs are session memory
+          url: null
         }))
       }));
       localStorage.setItem(this.storageKey, JSON.stringify(serializable));
@@ -47,21 +46,14 @@ export class SessionManager {
   }
 
   initDefaultSessions() {
-    const todayStr = new Date().toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-      year: "numeric"
-    });
-
     this.sessions = [
       {
         id: "sess_sample_1",
-        name: "Session Mon",
-        date: "22-7-2024",
+        name: "Morning Net Session",
+        date: "22-07-2024",
         time: "04:02 PM",
         dateGroup: "22 Jul 2024",
-        ballType: "Red Leather",
-        status: "in_progress", // "in_progress" | "completed"
+        status: "in_progress",
         bowlers: [
           { id: "b1", name: "Srinivas", style: "fast" },
           { id: "b2", name: "Rahul", style: "spin" }
@@ -70,11 +62,10 @@ export class SessionManager {
       },
       {
         id: "sess_sample_2",
-        name: "Session Mon",
-        date: "22-7-2024",
+        name: "Match Simulation",
+        date: "22-07-2024",
         time: "04:01 PM",
         dateGroup: "22 Jul 2024",
-        ballType: "White Leather",
         status: "completed",
         bowlers: [
           { id: "b1", name: "Srinivas", style: "fast" }
@@ -83,11 +74,10 @@ export class SessionManager {
       },
       {
         id: "sess_sample_3",
-        name: "Session Mon",
-        date: "22-7-2024",
+        name: "Target Length Practice",
+        date: "22-07-2024",
         time: "04:01 PM",
         dateGroup: "22 Jul 2024",
-        ballType: "Red Leather",
         status: "completed",
         bowlers: [
           { id: "b1", name: "Vikram", style: "fast" },
@@ -97,11 +87,10 @@ export class SessionManager {
       },
       {
         id: "sess_sample_4",
-        name: "Session Mon",
-        date: "22-7-2024",
+        name: "Death Overs Yorkers",
+        date: "22-07-2024",
         time: "04:01 PM",
         dateGroup: "22 Jul 2024",
-        ballType: "Tennis Ball",
         status: "completed",
         bowlers: [
           { id: "b1", name: "Srinivas", style: "fast" }
@@ -114,9 +103,9 @@ export class SessionManager {
   }
 
   /**
-   * Creates a new session with bowlers and ball type.
+   * Creates a new session with bowlers list.
    */
-  createSession({ name, ballType, bowlers }) {
+  createSession({ name, bowlers }) {
     const now = new Date();
     const dateStr = now.toLocaleDateString("en-GB").replace(/\//g, "-");
     const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -132,7 +121,6 @@ export class SessionManager {
       date: dateStr,
       time: timeStr,
       dateGroup: dateGroup,
-      ballType: ballType || "Red Leather",
       status: "in_progress",
       bowlers: bowlers && bowlers.length > 0 ? bowlers : [
         { id: "b1", name: "Srinivas", style: "fast" }
@@ -196,7 +184,7 @@ export class SessionManager {
     const delivery = {
       id: `del_${Date.now()}`,
       sessionId: session ? session.id : null,
-      sessionName: session ? session.name : "Quick Session",
+      sessionName: session ? session.name : "Session",
       ballNumber: session ? (session.deliveries.length + 1) : 1,
       bowler: {
         name: currentBowler.name,

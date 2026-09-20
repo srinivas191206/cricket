@@ -46,7 +46,6 @@ class TrackAIApp {
       { id: "b1", name: "Srinivas", style: "fast" },
       { id: "b2", name: "Rahul", style: "spin" }
     ];
-    this.selectedBallType = "Red Leather";
 
     // FPS calculation
     this.lastFrameTime = performance.now();
@@ -91,7 +90,6 @@ class TrackAIApp {
     this.modalCreateSession = document.getElementById("modalCreateSession");
     this.btnCloseCreateSessionModal = document.getElementById("btnCloseCreateSessionModal");
     this.inputSessionName = document.getElementById("inputSessionName");
-    this.ballChoiceGrid = document.getElementById("ballChoiceGrid");
     this.bowlersRosterList = document.getElementById("bowlersRosterList");
     this.btnAddBowlerRow = document.getElementById("btnAddBowlerRow");
     this.btnSubmitCreateSession = document.getElementById("btnSubmitCreateSession");
@@ -193,17 +191,6 @@ class TrackAIApp {
       this.handleCreateSessionSubmit();
     });
 
-    // Ball chips
-    if (this.ballChoiceGrid) {
-      this.ballChoiceGrid.querySelectorAll(".ball-chip").forEach(chip => {
-        chip.addEventListener("click", () => {
-          this.ballChoiceGrid.querySelectorAll(".ball-chip").forEach(c => c.classList.remove("active"));
-          chip.classList.add("active");
-          this.selectedBallType = chip.getAttribute("data-ball");
-        });
-      });
-    }
-
     // Active Bowler Switcher
     this.btnSwitchBowler.addEventListener("click", () => {
       this.openSwitchBowlerModal();
@@ -298,21 +285,23 @@ class TrackAIApp {
     this.ftSessionsGrid.innerHTML = "";
     sessions.forEach(sess => {
       const card = document.createElement("div");
-      card.className = "ft-session-card";
+      card.className = "pro-session-card";
       
       const isResume = sess.status === "in_progress" || sess.deliveries.length > 0;
       const count = sess.deliveries ? sess.deliveries.length : 0;
       const bowlerCount = sess.bowlers ? sess.bowlers.length : 1;
 
       card.innerHTML = `
-        <div class="ft-card-pitch-art"></div>
-        <div class="ft-card-bowler-silhouette"></div>
-        ${isResume ? `<span class="ft-resume-badge">Resume</span>` : ""}
-        <div class="ft-card-info">
-          <span class="ft-card-title">${sess.name}</span>
-          <span class="ft-card-date">${sess.date}</span>
-          <span class="ft-card-time">${sess.time}</span>
-          <span class="ft-card-ball-badge">${sess.ballType} • ${count} balls • ${bowlerCount} bowlers</span>
+        <div class="pro-card-pitch-header">
+          ${isResume ? `<span class="pro-resume-badge">Resume</span>` : ""}
+        </div>
+        <div class="pro-card-body">
+          <span class="pro-card-title">${sess.name}</span>
+          <span class="pro-card-time">${sess.date} • ${sess.time}</span>
+          <div class="pro-card-meta-pill">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            <span>${count} balls • ${bowlerCount} ${bowlerCount === 1 ? 'bowler' : 'bowlers'}</span>
+          </div>
         </div>
       `;
 
@@ -322,6 +311,11 @@ class TrackAIApp {
 
       this.ftSessionsGrid.appendChild(card);
     });
+
+    const countText = document.getElementById("ftSessionCountText");
+    if (countText) {
+      countText.textContent = `${sessions.length} recorded`;
+    }
   }
 
   openCreateSessionModal() {
@@ -340,22 +334,22 @@ class TrackAIApp {
 
     this.createSessionBowlers.forEach((b, idx) => {
       const row = document.createElement("div");
-      row.className = "bowler-row-item";
+      row.className = "pro-bowler-row";
       row.innerHTML = `
-        <span class="bowler-order-badge">${idx + 1}</span>
-        <input type="text" class="bowler-name-input" data-idx="${idx}" value="${b.name}" placeholder="Bowler Name">
-        <div class="bowler-style-toggle">
-          <button type="button" class="style-toggle-btn ${b.style === 'fast' ? 'active' : ''}" data-style="fast" data-idx="${idx}">⚡ Fast</button>
-          <button type="button" class="style-toggle-btn ${b.style === 'spin' ? 'active' : ''}" data-style="spin" data-idx="${idx}">🔄 Spin</button>
+        <span class="pro-order-circle">${idx + 1}</span>
+        <input type="text" class="pro-bowler-field" data-idx="${idx}" value="${b.name}" placeholder="Bowler Name">
+        <div class="pro-style-segment">
+          <button type="button" class="pro-segment-btn ${b.style === 'fast' ? 'active' : ''}" data-style="fast" data-idx="${idx}">Fast</button>
+          <button type="button" class="pro-segment-btn ${b.style === 'spin' ? 'active' : ''}" data-style="spin" data-idx="${idx}">Spin</button>
         </div>
-        ${this.createSessionBowlers.length > 1 ? `<button type="button" class="btn-del-bowler" data-del="${idx}">✕</button>` : ""}
+        ${this.createSessionBowlers.length > 1 ? `<button type="button" class="pro-row-del-btn" data-del="${idx}" title="Remove">✕</button>` : ""}
       `;
 
-      row.querySelector(".bowler-name-input").addEventListener("input", (e) => {
+      row.querySelector(".pro-bowler-field").addEventListener("input", (e) => {
         this.createSessionBowlers[idx].name = e.target.value.trim() || `Bowler ${idx + 1}`;
       });
 
-      row.querySelectorAll(".style-toggle-btn").forEach(btn => {
+      row.querySelectorAll(".pro-segment-btn").forEach(btn => {
         btn.addEventListener("click", () => {
           const style = btn.getAttribute("data-style");
           this.createSessionBowlers[idx].style = style;
@@ -389,7 +383,6 @@ class TrackAIApp {
     const sessionName = this.inputSessionName.value.trim() || "Net Session";
     const session = this.sessionMgr.createSession({
       name: sessionName,
-      ballType: this.selectedBallType,
       bowlers: this.createSessionBowlers
     });
 
@@ -429,7 +422,7 @@ class TrackAIApp {
     const session = this.sessionMgr.getActiveSession();
     const ballNum = session ? (session.deliveries.length + 1) : 1;
 
-    this.hudBowlerIcon.textContent = bowler.style === "spin" ? "🔄" : "⚡";
+    this.hudBowlerIcon.textContent = bowler.style === "spin" ? "SPIN" : "FAST";
     this.hudBowlerName.textContent = bowler.name;
     this.hudBowlerStyle.textContent = `${bowler.style.toUpperCase()} • Ball #${ballNum}`;
   }
@@ -444,10 +437,12 @@ class TrackAIApp {
       const item = document.createElement("button");
       item.className = `modal-option-btn ${isCurrent ? 'active' : ''}`;
       item.innerHTML = `
-        <span class="opt-icon">${b.style === 'spin' ? '🔄' : '⚡'}</span>
-        <div class="opt-text">
-          <strong>${b.name} (${b.style.toUpperCase()})</strong>
-          <small>Bowler #${idx + 1} in order</small>
+        <div class="opt-text" style="text-align: left; width: 100%;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <strong style="color: #0f172a; font-size: 14px;">${b.name}</strong>
+            <span style="font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: ${b.style === 'spin' ? '#e0f2fe' : '#fef3c7'}; color: ${b.style === 'spin' ? '#0369a1' : '#b45309'}; text-transform: uppercase;">${b.style}</span>
+          </div>
+          <small style="color: #64748b; font-size: 12px; margin-top: 2px; display: block;">Bowler #${idx + 1} in order</small>
         </div>
       `;
 
@@ -779,13 +774,13 @@ class TrackAIApp {
       card.style.marginBottom = "14px";
 
       const ballCount = sess.deliveries ? sess.deliveries.length : 0;
-      const bowlerList = sess.bowlers ? sess.bowlers.map(b => `${b.name} (${b.style === 'spin' ? '🔄' : '⚡'})`).join(", ") : "Srinivas";
+      const bowlerList = sess.bowlers ? sess.bowlers.map(b => `${b.name} (${b.style.toUpperCase()})`).join(", ") : "Srinivas";
 
       card.innerHTML = `
         <div class="insights-card-header">
           <div>
             <h4 style="font-size: 16px; margin-bottom: 2px;">${sess.name}</h4>
-            <span style="font-size: 12px; color: #64748b;">${sess.date} • ${sess.time} • ${sess.ballType}</span>
+            <span style="font-size: 12px; color: #64748b;">${sess.date} • ${sess.time}</span>
           </div>
           <button class="view-analysis-pill-btn" data-resumesess="${sess.id}">
             <span>Open Session</span>
@@ -796,7 +791,7 @@ class TrackAIApp {
           <strong>Bowlers:</strong> ${bowlerList}
         </div>
         <div style="font-size: 12px; color: #0284c7; font-weight: 700;">
-          ${ballCount} deliveries recorded
+          ${ballCount} ${ballCount === 1 ? 'delivery' : 'deliveries'} recorded
         </div>
       `;
 
